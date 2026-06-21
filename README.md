@@ -1,5 +1,7 @@
 # CV Planet
 
+**Try it live → [glass-uk.github.io/cv-planet](https://glass-uk.github.io/cv-planet/)**
+
 An interactive CV you drive around. Steer a little rover over a low-poly 3D planet and read the CV off voxel signposts scattered across its surface.
 
 Built with [Three.js](https://threejs.org/) and [Vite](https://vitejs.dev/). No build step required to view it — `index.html` ships an import map and runs straight from a static server.
