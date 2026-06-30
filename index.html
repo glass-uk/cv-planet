@@ -154,6 +154,26 @@
     #photo:hover { background: #fff; }
     #photo .ic { font-size: 11px; }
 
+    /* guided-tour CTA at the top of the landmark list */
+    .lm.tour {
+      background: var(--accent); color: #fff; border-color: var(--accent);
+      font-weight: 600; margin-bottom: 3px;
+    }
+    .lm.tour:hover { background: var(--accent); filter: brightness(1.06); transform: translateX(-3px); }
+    .lm.tour.active { background: var(--ink); border-color: var(--ink); filter: none; }
+    .lm.tour .ic { font-size: 10px; }
+
+    /* weather toggle, left rail next to photo */
+    #weather {
+      top: 262px; left: 226px; font-family: inherit; font-size: 12px; font-weight: 600;
+      color: var(--ink); background: rgba(255,255,255,0.55); backdrop-filter: blur(6px);
+      border: 1px solid var(--line); border-radius: 999px; padding: 7px 14px; cursor: pointer;
+      display: flex; align-items: center; gap: 7px;
+    }
+    #weather:hover { background: #fff; }
+    #weather.active { background: var(--ink); color: #fff; border-color: var(--ink); }
+    #weather .wi { font-size: 12px; line-height: 1; }
+
     /* buildings-flattened score */
     #score {
       top: 300px; left: 30px; display: flex; align-items: center; gap: 8px;
@@ -166,6 +186,25 @@
       font-variant-numeric: tabular-nums;
     }
     #score .ic { font-size: 13px; }
+
+    /* vehicle picker (left rail, under the score) */
+    #vehicles {
+      top: 338px; left: 30px; display: flex; flex-wrap: wrap; gap: 7px; max-width: 264px;
+    }
+    #vehicles .veh-label {
+      flex-basis: 100%; font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase;
+      color: var(--muted); margin-bottom: 1px; font-weight: 600;
+    }
+    .veh {
+      display: flex; align-items: center; gap: 7px;
+      border: 1px solid var(--line); background: rgba(255,255,255,0.55);
+      backdrop-filter: blur(6px); padding: 7px 12px; border-radius: 999px; cursor: pointer;
+      font-family: inherit; font-size: 13px; font-weight: 500; color: var(--ink);
+      transition: background 0.18s, transform 0.18s, border-color 0.18s;
+    }
+    .veh:hover { background: #fff; transform: translateY(-2px); }
+    .veh.active { background: var(--ink); color: #fff; border-color: var(--ink); }
+    .veh .vi { font-size: 14px; line-height: 1; }
 
     /* boost flame on the pad */
     #pad .boost { grid-column: 1; grid-row: 1; font-size: 20px; }
@@ -233,7 +272,7 @@
   <div id="hint" class="ui ui-noclick">
     <div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or arrows to drive</div>
     <div>Click a landmark to travel · drag to rotate</div>
-    <div><kbd>Shift</kbd> boost · <kbd>P</kbd> photo mode</div>
+    <div><kbd>Shift</kbd> boost · <kbd>P</kbd> photo · <kbd>V</kbd> vehicle</div>
   </div>
 
   <div id="viewing" class="ui ui-noclick"><span class="dot"></span><span class="vt"></span></div>
@@ -249,7 +288,9 @@
   <canvas id="compass" class="ui ui-noclick" width="240" height="240"></canvas>
   <button id="mute" class="ui ui-click"><span class="ic"></span><span class="mt">Sound on</span></button>
   <button id="photo" class="ui ui-click"><span class="ic">▣</span><span class="pt">Photo</span></button>
+  <button id="weather" class="ui ui-click"></button>
   <div id="score" class="ui ui-noclick"><span class="ic">🏗️</span><span class="num">0</span><span>flattened</span></div>
+  <div id="vehicles" class="ui ui-click"><div class="veh-label">Vehicle</div></div>
   <div id="photo-exit" class="ui ui-noclick">Photo mode · drag to frame · press <kbd>P</kbd> to exit</div>
 
   <div id="start" class="ui">

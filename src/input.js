@@ -16,7 +16,7 @@ const isShift = (code) => code === 'ShiftLeft' || code === 'ShiftRight';
 
 export function createInput({
   domElement, camera, signMeshes,
-  onCameraDrag, onCancelTravel, onTravelRequested, onTogglePhoto,
+  onCameraDrag, onCancelTravel, onTravelRequested, onTogglePhoto, onCycleVehicle,
 }) {
   const keys = { up: false, down: false, left: false, right: false, boost: false };
 
@@ -35,6 +35,8 @@ export function createInput({
       keys.boost = true;
     } else if (e.code === 'KeyP') {
       onTogglePhoto();
+    } else if (e.code === 'KeyV') {
+      onCycleVehicle();
     }
   });
   addEventListener('keyup', (e) => {

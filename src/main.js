@@ -90,7 +90,7 @@ planet.add(globe);
 
 // ── Modules ───────────────────────────────────────────────────────────────
 const rover = createRover(scene, R);
-const particles = createParticles(scene, { wheels: rover.wheels });
+const particles = createParticles(scene);
 const audio = createAudio({ muted: localStorage.getItem('cvMuted') === '1' });
 
 // The world builds biomes/water/scenery/road/signs and owns the scenery
@@ -107,7 +107,13 @@ ui = createUI({
   profile,
   stations,
   audio,
-  onTravelRequested: (i) => travelTo(i),
+  onTravelRequested: (i) => { stopTour(); travelTo(i); },
+  onVehicleChange: (type) => {
+    rover.setVehicle(type);
+    audio.setEngineProfile(type);
+  },
+  onWeatherChange: (type) => atmosphere.setWeather(type),
+  onTourToggle: () => (touring ? stopTour() : startTour()),
 });
 
 const input = createInput({
@@ -119,8 +125,9 @@ const input = createInput({
     camEl = Math.max(0.06, Math.min(1.35, camEl - dy * 0.005));
   },
   onCancelTravel: cancelTravel,
-  onTravelRequested: (i) => travelTo(i),
+  onTravelRequested: (i) => { stopTour(); travelTo(i); },
   onTogglePhoto: () => ui.togglePhoto(),
+  onCycleVehicle: () => ui.cycleVehicle(),
 });
 
 // ── Drive + travel state ──────────────────────────────────────────────────
@@ -129,7 +136,8 @@ let activeStation = -1;
 let traveling = false;
 const targetQuat = new THREE.Quaternion();
 
-function cancelTravel() { traveling = false; }
+// taking a drive key cancels both an in-flight travel and a running tour
+function cancelTravel() { traveling = false; stopTour(); }
 
 function travelTo(i) {
   if (i < 0 || i >= stations.length) return;
@@ -139,6 +147,74 @@ function travelTo(i) {
   // normalize heading so the slerp back to forward takes the short way
   heading = ((heading + Math.PI) % (Math.PI * 2)) - Math.PI;
   ui.setActiveStation(i);
+}
+
+// ── Guided tour: auto-DRIVE to every station in turn, pausing at each sign ───
+// Rather than slerp straight to a station, the tour steers toward it and rolls
+// the planet forward (just like holding W), then hands off to travelTo() for
+// the final settle so the sign ends upright and facing the camera.
+const TOUR_DWELL = 3.5;     // seconds to linger at each station
+const TOUR_ARRIVE = 0.3;    // angle (rad) from the top at which we settle
+let touring = false;
+let tourIndex = 0;
+let tourDwell = 0;
+let tourDriving = false;
+const WORLD_UP = new THREE.Vector3(0, 1, 0);
+const _suw = new THREE.Vector3();   // a station's current world position
+const _tourAxis = new THREE.Vector3();
+
+function startTour() {
+  if (touring) return;
+  touring = true;
+  tourDwell = 0;
+  beginDriveTo(0);
+  ui.setTourActive(true);
+}
+
+function beginDriveTo(i) {
+  tourIndex = i;
+  tourDriving = true;
+  activeStation = -1;
+  ui.clearActiveStation();   // nothing is "current" while in transit
+}
+
+function stopTour() {
+  if (!touring) return;
+  touring = false;
+  tourDriving = false;
+  ui.setTourActive(false);
+}
+
+// Steer toward the target station and roll forward; once it's near the top,
+// hand off to the settle slerp that squares the sign up to the camera.
+function driveTourStep(dt) {
+  _suw.copy(terrain.STATION_DIRS[tourIndex]).applyQuaternion(planet.quaternion);
+  if (_suw.angleTo(WORLD_UP) < TOUR_ARRIVE) {
+    tourDriving = false;
+    travelTo(tourIndex);
+    return;
+  }
+  // face the station's horizontal bearing (forward = (-sin h, -cos h))
+  if (Math.hypot(_suw.x, _suw.z) > 1e-3) {
+    const targetHeading = Math.atan2(-_suw.x, -_suw.z);
+    const dh = Math.atan2(Math.sin(targetHeading - heading), Math.cos(targetHeading - heading));
+    const maxTurn = CONFIG.turnSpeed * dt;
+    heading += Math.max(-maxTurn, Math.min(maxTurn, dh));
+  }
+  _tourAxis.set(Math.cos(heading), 0, -Math.sin(heading));
+  planet.rotateOnWorldAxis(_tourAxis, CONFIG.driveSpeed * dt);
+  rover.applyDrive(1, 1, dt);
+}
+
+// advance the tour once the planet has settled and we've lingered long enough
+function updateTour(dt) {
+  if (!touring || traveling || tourDriving) return;
+  tourDwell += dt;
+  if (tourDwell < TOUR_DWELL) return;
+  tourDwell = 0;
+  const next = tourIndex + 1;
+  if (next >= stations.length) stopTour();
+  else beginDriveTo(next);
 }
 
 // ── Resize ────────────────────────────────────────────────────────────────
@@ -166,6 +242,8 @@ function tick() {
       planet.quaternion.copy(targetQuat);
       traveling = false;
     }
+  } else if (touring && tourDriving) {
+    driveTourStep(dt);
   } else {
     if (keys.left) heading += CONFIG.turnSpeed * dt;
     if (keys.right) heading -= CONFIG.turnSpeed * dt;
@@ -186,21 +264,28 @@ function tick() {
     }
   }
 
-  const driving = !traveling && (keys.up || keys.down);
+  updateTour(dt);
+
+  const tourMoving = touring && tourDriving;
+  const driving = tourMoving || (!traveling && (keys.up || keys.down));
   const boosting = driving && keys.boost;
-  world.updateProps(dt, driving);
+  const flying = rover.isFlying();
+  const turn = traveling ? 0 : (keys.left ? 1 : 0) - (keys.right ? 1 : 0);
+  // flying vehicles glide over the scenery — no toppling, no ground dust
+  world.updateProps(dt, driving && !flying);
 
   // engine + dust use the previous frame's groundY (rover.update sets the new one below)
   const groundY = rover.getGroundY();
   engineSpeed += ((driving ? 1 : 0) - engineSpeed) * Math.min(1, 8 * dt);
   audio.engine(engineSpeed * (boosting ? 1.4 : 1));
-  if (driving) {
-    const ddir = keys.up ? 1 : -1;
-    if (Math.random() < 0.85) particles.spawnDust(ddir, heading, groundY);
-    if (Math.random() < 0.5) particles.spawnDust(ddir, heading, groundY);
+  if (driving && !flying) {
+    const ddir = (tourMoving || keys.up) ? 1 : -1;
+    const emit = () => particles.spawnDust(rover.dustOrigin(ddir), ddir, heading, groundY);
+    if (Math.random() < 0.85) emit();
+    if (Math.random() < 0.5) emit();
     if (boosting) {
-      particles.spawnDust(ddir, heading, groundY);
-      if (Math.random() < 0.7) particles.spawnDust(ddir, heading, groundY);
+      emit();
+      if (Math.random() < 0.7) emit();
     }
   }
   particles.update(dt, groundY);
@@ -223,6 +308,8 @@ function tick() {
     planet,
     terrainHeight: terrain.terrainHeight,
     driving,
+    boosting,
+    turn,
     light01,
   });
 

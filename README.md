@@ -69,13 +69,24 @@ Each station becomes a voxel signpost at its lat/lon, linked into a road loop th
 ```
 index.html        page shell, HUD, styles, import map
 src/
-  main.js         the whole 3D scene: planet, terrain, scenery, rover, signs, input
   cvData.js       your CV content (the only file you need to edit)
+  main.js         orchestrator: renderer, scene, camera, planet group, tick loop
+  terrain.js      height field + the lat/lon ↔ sphere helpers everything builds on
+  world.js        on-planet content: biomes, water, scenery, road, signs, collisions
+  builders.js     make* functions for each voxel structure (mosque, windmill, sheep…)
+  voxel.js        vbox() cube primitive + mesh-merging for performance + palettes
+  atmosphere.js   sky, sun, day/night cycle, and per-frame scenery animation
+  rover.js        the rover model and its driving/bob animation
+  signs.js        renders a station's CV card to a canvas texture
+  ui.js           HUD: identity, landmark list, compass, photo mode
+  input.js        keyboard, touch d-pad, click-to-travel picking
+  particles.js    dust and debris
+  audio.js        WebAudio engine hum and crash sounds
 vite.config.js    minimal Vite config
 package.json      three + vite
 ```
 
-Tunables (planet radius, drive speed, palette) live at the top of `src/main.js` in the `CONFIG` block.
+Each module is a `createX(...)` factory that builds its own meshes and returns a small handle; `main.js` wires them together. Tunables (planet radius, drive speed, palette) live at the top of `src/main.js` in the `CONFIG` block; biome definitions live at the top of `src/world.js`.
 
 ## License
 

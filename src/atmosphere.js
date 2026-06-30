@@ -13,6 +13,15 @@ const HEMI_GROUND = new THREE.Color('#9fbf7a');
 const HEMI_GROUND_N = new THREE.Color('#2a3550');
 const DAY_SPEED = 0.045; // radians/sec of the sun's arc
 
+// Weather voices. The rover is always at the top of the globe, so a fixed box
+// of falling points around it covers the whole view. Rain falls fast and
+// straight; snow drifts slow with a sideways sway. `tint` greys the sky while
+// it's coming down.
+const WEATHER = {
+  rain: { count: 520, fall: 62, sway: 0,   size: 0.4,  color: '#9fc4e0', opacity: 0.6, tint: new THREE.Color('#8b94a1') },
+  snow: { count: 300, fall: 7,  sway: 2.2, size: 0.95, color: '#ffffff', opacity: 0.9, tint: new THREE.Color('#d2d8de') },
+};
+
 export function createAtmosphere(scene, planet, R) {
   // sky background + fog
   scene.background = new THREE.Color().copy(SKY_DAY);
@@ -115,6 +124,59 @@ export function createAtmosphere(scene, planet, R) {
   const stars = new THREE.Points(starGeo, starMat);
   scene.add(stars);
 
+  // ── Weather (rain / snow) ─────────────────────────────────────────────────
+  // One point cloud in a box around the rover; setDrawRange + material swaps
+  // pick the active voice, so we only pay for one buffer.
+  const WHALF = new THREE.Vector3(46, 30, 46);   // half-extents of the box
+  const WCEN = new THREE.Vector3(0, R + 12, 0);  // centred above the rover
+  const WMAX = 520;
+  const wPos = new Float32Array(WMAX * 3);
+  const seedDrop = (i) => {
+    wPos[i * 3] = WCEN.x + (Math.random() * 2 - 1) * WHALF.x;
+    wPos[i * 3 + 1] = WCEN.y + (Math.random() * 2 - 1) * WHALF.y;
+    wPos[i * 3 + 2] = WCEN.z + (Math.random() * 2 - 1) * WHALF.z;
+  };
+  for (let i = 0; i < WMAX; i++) seedDrop(i);
+  const wGeo = new THREE.BufferGeometry();
+  wGeo.setAttribute('position', new THREE.BufferAttribute(wPos, 3));
+  const wMat = new THREE.PointsMaterial({ size: 0.8, transparent: true, opacity: 0.8, fog: false, depthWrite: false });
+  const weatherPoints = new THREE.Points(wGeo, wMat);
+  weatherPoints.frustumCulled = false;
+  weatherPoints.visible = false;
+  scene.add(weatherPoints);
+  let weather = null; // null = clear, else a WEATHER entry
+
+  function setWeather(type) {
+    weather = WEATHER[type] || null;
+    weatherPoints.visible = !!weather;
+    if (weather) {
+      wGeo.setDrawRange(0, weather.count);
+      wMat.size = weather.size;
+      wMat.color.set(weather.color);
+      wMat.opacity = weather.opacity;
+    }
+  }
+
+  function updateWeather(dt, elapsed) {
+    if (!weather) return;
+    const bottom = WCEN.y - WHALF.y;
+    const h = WHALF.y * 2;
+    for (let i = 0; i < weather.count; i++) {
+      const yi = i * 3 + 1;
+      wPos[yi] -= weather.fall * dt;
+      if (weather.sway) {
+        wPos[i * 3] += Math.sin(elapsed * 1.5 + i) * weather.sway * dt;
+        wPos[i * 3 + 2] += Math.cos(elapsed * 1.3 + i) * weather.sway * dt;
+      }
+      if (wPos[yi] < bottom) {            // recycle to the top with fresh x/z
+        wPos[yi] += h;
+        wPos[i * 3] = WCEN.x + (Math.random() * 2 - 1) * WHALF.x;
+        wPos[i * 3 + 2] = WCEN.z + (Math.random() * 2 - 1) * WHALF.z;
+      }
+    }
+    wGeo.attributes.position.needsUpdate = true;
+  }
+
   // ── Day/night state ──────────────────────────────────────────────────────
   let light01 = 1; // 1 = full day, 0 = full night
   const _sky = new THREE.Color();
@@ -128,6 +190,7 @@ export function createAtmosphere(scene, planet, R) {
     hemi.intensity = 0.18 + light01 * 0.55;
     hemi.groundColor.copy(HEMI_GROUND_N).lerp(HEMI_GROUND, light01);
     _sky.copy(SKY_NIGHT).lerp(SKY_DAY, light01);
+    if (weather) _sky.lerp(weather.tint, 0.4); // grey the sky while it comes down
     scene.background.copy(_sky);
     scene.fog.color.copy(_sky);
     starMat.opacity = (1 - light01) * 0.9;
@@ -202,8 +265,9 @@ export function createAtmosphere(scene, planet, R) {
   function update(dt, elapsed, registries) {
     updateDayNight(elapsed, dt, registries);
     animateScenery(elapsed, dt, registries);
+    updateWeather(dt, elapsed);
     return light01;
   }
 
-  return { update };
+  return { update, setWeather };
 }

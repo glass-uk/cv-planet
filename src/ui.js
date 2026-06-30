@@ -2,8 +2,22 @@
 // mute button, photo button, score readout, and the canvas compass.
 // Returns handles the main loop and world use to push state into the UI.
 
+// The vehicles you can drive. `id` is what rover.setVehicle() expects.
+const VEHICLES = [
+  { id: 'car', icon: '🚙', label: 'Rover' },
+  { id: 'plane', icon: '✈️', label: 'Plane' },
+  { id: 'rocket', icon: '🚀', label: 'Rocket' },
+];
+
+// Weather toggle cycles through these in order; `id` is what setWeather() wants.
+const WEATHERS = [
+  { id: 'clear', icon: '☀️', label: 'Clear' },
+  { id: 'rain', icon: '🌧️', label: 'Rain' },
+  { id: 'snow', icon: '❄️', label: 'Snow' },
+];
+
 export function createUI({
-  profile, stations, audio, onTravelRequested,
+  profile, stations, audio, onTravelRequested, onVehicleChange, onWeatherChange, onTourToggle,
 }) {
   // ── Identity (top-left) ─────────────────────────────────────────────────
   document.querySelector('#identity .name').textContent = profile.name || '';
@@ -14,6 +28,20 @@ export function createUI({
   const listEl = document.getElementById('landmarks');
   const viewingEl = document.getElementById('viewing');
   let activeStation = -1;
+
+  // Guided-tour CTA, sitting at the top of the landmark list
+  const tourBtn = document.createElement('button');
+  tourBtn.className = 'lm tour';
+  tourBtn.addEventListener('click', () => onTourToggle());
+  listEl.appendChild(tourBtn);
+
+  function setTourActive(on) {
+    tourBtn.classList.toggle('active', on);
+    tourBtn.innerHTML = on
+      ? '<span class="ic">■</span>Stop tour'
+      : '<span class="ic">▶</span>Take the tour';
+  }
+  setTourActive(false);
 
   const lmButtons = stations.map((s, i) => {
     const b = document.createElement('button');
@@ -78,6 +106,53 @@ export function createUI({
     scoreEl.classList.add('show');
   }
 
+  // ── Vehicle picker ──────────────────────────────────────────────────────
+  // Remembers your pick across reloads and syncs the rover on load.
+  const vehListEl = document.getElementById('vehicles');
+  const saved = localStorage.getItem('cvVehicle');
+  let vehicle = VEHICLES.some((v) => v.id === saved) ? saved : VEHICLES[0].id;
+
+  const vehButtons = VEHICLES.map((v) => {
+    const b = document.createElement('button');
+    b.className = 'veh';
+    b.innerHTML = `<span class="vi">${v.icon}</span>${v.label}`;
+    b.addEventListener('click', () => selectVehicle(v.id));
+    vehListEl.appendChild(b);
+    return b;
+  });
+
+  function selectVehicle(id) {
+    vehicle = id;
+    localStorage.setItem('cvVehicle', id);
+    vehButtons.forEach((b, idx) => b.classList.toggle('active', VEHICLES[idx].id === id));
+    onVehicleChange(id);
+  }
+
+  function cycleVehicle() {
+    const i = VEHICLES.findIndex((v) => v.id === vehicle);
+    selectVehicle(VEHICLES[(i + 1) % VEHICLES.length].id);
+  }
+
+  selectVehicle(vehicle); // reflect the saved pick in the rover + the buttons
+
+  // ── Weather toggle (clear → rain → snow) ────────────────────────────────
+  const weatherBtn = document.getElementById('weather');
+  const savedW = WEATHERS.findIndex((w) => w.id === localStorage.getItem('cvWeather'));
+  let weatherIdx = savedW < 0 ? 0 : savedW;
+
+  function applyWeather() {
+    const w = WEATHERS[weatherIdx];
+    weatherBtn.innerHTML = `<span class="wi">${w.icon}</span>${w.label}`;
+    weatherBtn.classList.toggle('active', w.id !== 'clear');
+    localStorage.setItem('cvWeather', w.id);
+    onWeatherChange(w.id);
+  }
+  weatherBtn.addEventListener('click', () => {
+    weatherIdx = (weatherIdx + 1) % WEATHERS.length;
+    applyWeather();
+  });
+  applyWeather();
+
   // ── Compass / minimap ───────────────────────────────────────────────────
   const compassEl = document.getElementById('compass');
   const cctx = compassEl.getContext('2d');
@@ -139,6 +214,6 @@ export function createUI({
 
   return {
     setActiveStation, clearActiveStation,
-    togglePhoto, addScore, drawCompass,
+    togglePhoto, addScore, drawCompass, cycleVehicle, setTourActive,
   };
 }

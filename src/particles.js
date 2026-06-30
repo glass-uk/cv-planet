@@ -7,7 +7,7 @@ import { rpick, SAND } from './voxel.js';
 
 const PCOUNT = 140;
 
-export function createParticles(scene, { wheels }) {
+export function createParticles(scene) {
   const pGeo = new THREE.BoxGeometry(1, 1, 1);
   const pPool = [];
   for (let i = 0; i < PCOUNT; i++) {
@@ -18,7 +18,6 @@ export function createParticles(scene, { wheels }) {
     pPool.push({ m, life: 0, max: 1, baseSize: 1, vel: new THREE.Vector3() });
   }
   let pNext = 0;
-  const _wp = new THREE.Vector3();
 
   function spawnParticle(pos, vel, color, size, life) {
     const p = pPool[pNext];
@@ -42,12 +41,9 @@ export function createParticles(scene, { wheels }) {
     }
   }
 
-  // dir: 1 = driving forward, -1 = reversing
-  // Emits from the trailing wheels: rear when going forward, front when reversing.
-  function spawnDust(dir, heading, groundY) {
-    const pool = dir > 0 ? [2, 3, 2, 3, 0, 1] : [0, 1, 0, 1, 2, 3];
-    const idx = pool[(Math.random() * 6) | 0];
-    wheels[idx].getWorldPosition(_wp);
+  // origin: world position to emit from (a vehicle's trailing emitter point).
+  // dir: 1 = driving forward, -1 = reversing.
+  function spawnDust(origin, dir, heading, groundY) {
     const bx = Math.sin(heading) * dir;
     const bz = Math.cos(heading) * dir;
     const sp = 7 + Math.random() * 6;
@@ -56,7 +52,7 @@ export function createParticles(scene, { wheels }) {
       1.0 + Math.random() * 1.6,
       bz * sp + (Math.random() - 0.5) * 2,
     );
-    spawnParticle(new THREE.Vector3(_wp.x, groundY + 0.18, _wp.z), v, '#d8cdb4', 0.28 + Math.random() * 0.22, 0.85 + Math.random() * 0.35);
+    spawnParticle(new THREE.Vector3(origin.x, groundY + 0.18, origin.z), v, '#d8cdb4', 0.28 + Math.random() * 0.22, 0.85 + Math.random() * 0.35);
   }
 
   function update(dt, groundY) {
