@@ -80,7 +80,7 @@ export const stations = [
       { head: '~100 services · 170 Kafka topics', sub: '15 MongoDB DBs across ~85 collections' },
       { head: 'Scaled parcel processing for peak', sub: 'Fewer round-trips, batched writes, hot-path caching' },
       { head: 'Kafka Streams enrichment', sub: 'Real-time parcel events · Connect source/sink pipelines' },
-      { head: 'On-call: led RCA & incidents', sub: 'Mongo 8 consumer-lag escalation — patched, no rollback' },
+      { head: 'On-call: led RCA & incidents', sub: 'Triaged production incidents, drove root-cause fixes' },
     ],
   },
   {
